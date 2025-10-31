@@ -1,0 +1,16 @@
+# blacklist.toml
+# Символы, которые нужно игнорировать (пример: BTCUSDT, ETHUSDT)
+blacklist = [
+    "OMGUSDT",
+    "MKRUSDT",
+    "BALUSDT",
+    "STMXUSDT",
+    "BAKEUSDT",
+    "DARUSDT",
+    "LEVERUSDT",
+    "HIFIUSDT",
+    "BONDUSDT",
+    "STPTUSDT",
+    "LOKAUSDT",
+    "LITUSDT"
+]

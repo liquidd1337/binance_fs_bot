@@ -1,0 +1,11 @@
+# config.toml
+
+# Порог разницы между спотом и фьючерсом (в процентах)
+diff_threshold = 4.0
+
+# Интервал обновления в секундах (например, 300 = 5 минут)
+update_interval = 120
+
+# Настройки Telegram
+telegram_token = "8142522434:AAHx77RapZlgL1geTXCpeOJL-2ixsnWV0F0"
+chat_id = -5015403263   # ваш chat_id (можно получить через @userinfobot)
