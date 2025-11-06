@@ -1,4 +1,5 @@
 mod tg_bot;
+mod check;
 
 use reqwest::Client;
 use serde::Deserialize;
@@ -25,6 +26,7 @@ struct SymbolInfo {
 struct Config {
     diff_threshold: f64,
     update_interval: u64,
+    hold_time_secs: u64,
     telegram_token: String,
     chat_id: i64,
 }
@@ -61,48 +63,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let blacklist: Blacklist = toml::from_str(&blacklist_text)
         .expect("❌ Ошибка парсинга blacklist.toml");
 
+    let mut check_list = check::CheckList::load();
+
     let client = Client::new();
     let tg_bot = TgBot::new(&config.telegram_token, config.chat_id);
 
-    //Получаем список бессрочных фьючерсов
+    loop {
+        let removed = check_list.cleanup(config.hold_time_secs);
+        if !removed.is_empty() {
+            println!("❌ Удалил старые записи: {}", removed.join(", "));
+        }
+        //Получаем список бессрочных фьючерсов
     println!("Загружаю список фьючерсов...");
-    let futures_info: ExchangeInfo = client
-        .get("https://fapi.binance.com/fapi/v1/exchangeInfo")
-        .send()
-        .await?
-        .json()
-        .await?;
+        let futures_info: ExchangeInfo = client
+            .get("https://fapi.binance.com/fapi/v1/exchangeInfo")
+            .send()
+            .await?
+            .json()
+            .await?;
 
     //Получаем список спотовых пар
-    println!("Загружаю список спотовых пар...");
-    let spot_info: ExchangeInfo = client
-        .get("https://api.binance.com/api/v3/exchangeInfo")
-        .send()
-        .await?
-        .json()
-        .await?;
+        println!("Загружаю список спотовых пар...");
+        let spot_info: ExchangeInfo = client
+            .get("https://api.binance.com/api/v3/exchangeInfo")
+            .send()
+            .await?
+            .json()
+            .await?;
 
     //Собираем список символов бессрочных фьючерсов, у которых есть спотовая пара
-    let spot_symbols: HashMap<_, _> =
-        spot_info.symbols.iter().map(|s| (s.symbol.clone(), true)).collect();
+        let spot_symbols: HashMap<_, _> =
+            spot_info.symbols.iter().map(|s| (s.symbol.clone(), true)).collect();
 
-    let valid_symbols: Vec<String> = futures_info
-        .symbols
-        .into_iter()
-        .filter(|f| f.contractType == "PERPETUAL" && spot_symbols.contains_key(&f.symbol))
-        .map(|f| f.symbol)
-        .collect();
+        let valid_symbols: Vec<String> = futures_info
+            .symbols
+            .into_iter()
+            .filter(|f| f.contractType == "PERPETUAL" && spot_symbols.contains_key(&f.symbol))
+            .map(|f| f.symbol)
+            .collect();
 
-     println!("✅ Найдено {} совпадающих пар", valid_symbols.len());
-    tg_bot
-        .send_message(&format!(
-            "🚀 Мониторинг запущен\nПорог: {:.2}%\nИнтервал: {} сек.\nОтслеживаемых пар: {}",
-            config.diff_threshold, config.update_interval, valid_symbols.len()
-        ))
-        .await;
-
-    loop {
-        //Получаем все цены одним запросом
         let futures_prices: Vec<PriceResponse> = client
             .get("https://fapi.binance.com/fapi/v1/ticker/price")
             .send()
@@ -131,7 +130,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let mut message = format!("📊 {}\nПары с разницей > {:.2}%:\n", now, config.diff_threshold);
 
-        //Проверяем все пары
         let mut found = false;
 
         for symbol in &valid_symbols {
@@ -139,6 +137,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if blacklist.blacklist.contains(symbol) {
                 continue;
             }
+        
+            if !check_list.should_notify(symbol) {
+                continue;
+            }
+
 
             if let (Some(fut_str), Some(spot_str)) = (fut_map.get(symbol), spot_map.get(symbol)) {
                 let fut_price: f64 = fut_str.parse().unwrap_or(0.0);
@@ -152,6 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "{} | F: {:.4} | S: {:.4} | Δ: {:+.2}%\n",
                             symbol, fut_price, spot_price, diff_pct
                         ));
+                        check_list.add(symbol.clone());
                     }
                 }
             }
@@ -161,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", message);
             tg_bot.send_message(&message).await;
         } else {
-            continue;
+            println!("Нет пар с разницей > {:.2}%", config.diff_threshold);
         }
 
         //Ждём интервал

@@ -5,7 +5,9 @@ diff_threshold = 4.0
 
 # Интервал обновления в секундах (например, 300 = 5 минут)
 update_interval = 120
+# сколько секунд удерживать пары в check.toml (sec)
+hold_time_secs = 43200     
 
 # Настройки Telegram
-telegram_token = "8142522434:AAHx77RapZlgL1geTXCpeOJL-2ixsnWV0F0"
-chat_id = -5015403263   # ваш chat_id (можно получить через @userinfobot)
+telegram_token = "8433477249:AAGGhBO4I1yri5XyjJ-HjsaMmCAvFm_SO1Y"
+chat_id = -1003262248804   # ваш chat_id (можно получить через @userinfobot)
