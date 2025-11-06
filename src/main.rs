@@ -164,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if found {
             println!("{}", message);
             tg_bot.send_message(&message).await;
-            check_list.save();
+            check_list.save(); 
         } else {
             println!("Нет пар с разницей > {:.2}%", config.diff_threshold);
         }
